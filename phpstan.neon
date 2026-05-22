@@ -1,0 +1,12 @@
+# SmartAdminBuilder 独立仓静态分析只扫描构建器源码和单测。
+parameters:
+    level: 0
+    paths:
+        - Ast
+        - Support
+        - Command.php
+        - Provider.php
+        - tests
+    reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        - '#Constant BASE_PATH not found#'
