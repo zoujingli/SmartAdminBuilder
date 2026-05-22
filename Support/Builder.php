@@ -56,7 +56,6 @@ class Builder
         'app/',
         'bin/',
         'config/',
-        'migrations/',
         'runtime/container/',
         'plugin/',
         'vendor/zoujingli/',
