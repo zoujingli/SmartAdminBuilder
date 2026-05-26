@@ -6,7 +6,7 @@ declare(strict_types=1);
  *
  * @contact Anyon <zoujingli@qq.com>
  * @license https://github.com/zoujingli/SmartAdmin/blob/master/LICENSE
- * @document https://github.com/zoujingli/SmartAdmin/blob/master/readme.md
+ * @document https://zoujingli.github.io/SmartAdmin
  */
 
 namespace Builder\Ast\Visitor;
@@ -260,7 +260,7 @@ final class ObfuscateFunctionBodyVisitor extends NodeVisitorAbstract
                 for ($index = 0, $length = strlen($value); $index < $length; ++$index) {
                     $encoded .= chr(ord($value[$index]) ^ $key);
                 }
-                return new Node\Expr\FuncCall(new Node\Name('\\xadmin_obf_s'), [
+                return new Node\Expr\FuncCall(new Node\Name('\xadmin_obf_s'), [
                     new Node\Arg(new Node\Scalar\String_(strrev(base64_encode($encoded)))),
                     new Node\Arg(new Node\Scalar\LNumber($key)),
                 ]);

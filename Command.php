@@ -6,7 +6,7 @@ declare(strict_types=1);
  *
  * @contact Anyon <zoujingli@qq.com>
  * @license https://github.com/zoujingli/SmartAdmin/blob/master/LICENSE
- * @document https://github.com/zoujingli/SmartAdmin/blob/master/readme.md
+ * @document https://zoujingli.github.io/SmartAdmin
  */
 
 namespace Builder;
@@ -37,7 +37,7 @@ final class Command extends HyperfCommand
     public function isEnabled(): bool
     {
         // Phar 构建器只属于源码/CI 构建阶段；发布包内部不能再次打包自身。
-        return \Phar::running(false) === '';
+        return !$this->isPharMode();
     }
 
     public function handle(): void
@@ -92,5 +92,11 @@ final class Command extends HyperfCommand
             throw new \RuntimeException('The project has not been initialized, please manually execute the command `composer install` to install the dependencies');
         }
         return $pharBuilder;
+    }
+
+    private function isPharMode(): bool
+    {
+        // Builder 是独立 Composer 包，不能依赖 SmartAdminLibrary 的 System 常量类；这里只判断当前入口是否来自 Phar。
+        return class_exists(\Phar::class, false) && \Phar::running(false) !== '';
     }
 }

@@ -6,7 +6,7 @@ declare(strict_types=1);
  *
  * @contact Anyon <zoujingli@qq.com>
  * @license https://github.com/zoujingli/SmartAdmin/blob/master/LICENSE
- * @document https://doc.hyperf.thinkadmin.top
+ * @document https://zoujingli.github.io/SmartAdmin
  */
 
 namespace Builder\Support;
@@ -29,6 +29,20 @@ class Builder
      * Phar 内前端资源压缩包路径；运行期由 FrontendPublisher 解压到 public，避免直接在 Phar 中暴露 web/dist 目录树。
      */
     private const FRONTEND_ARCHIVE_PATH = 'storage/extra/web-dist.zip';
+
+    /**
+     * Phar 内数据库安装包目录；运行期由 release restore --install 直接从包内读取。
+     */
+    private const RELEASE_INSTALL_PACKAGE_PATH = 'storage/extra/release';
+
+    /**
+     * 数据库安装包必需文件；只允许构建期生成的结构、必要数据和元数据进入 Phar。
+     */
+    private const RELEASE_INSTALL_REQUIRED_FILES = [
+        'database.schema.gz',
+        'database.data.gz',
+        'database.meta.json',
+    ];
 
     /**
      * 前端资源包最小入口文件；缺失时发布包无法提供 SPA 入口，构建阶段直接失败。
@@ -338,7 +352,7 @@ PHP;
         // 查找需要打包的文件
         $finder = Finder::create()->files()->ignoreVCS(true)->notPath([
             '/^build/i',
-            '/^bin\/start-watch$/i',
+            '/^bin\/smart$/i',
             '/^readme.md$/i',
             '/^phpstan.neon$/i',
             '/^phpunit\.xml$/i',
@@ -346,6 +360,7 @@ PHP;
             '/^\.php-sfx-packer\.php$/i',
             '/^composer\.phar/i',
             '/^bin\/swoole-/i',
+            '/^storage\/extra\/release\//i',
             $fphar,
         ])->exclude([$main, 'plugin', 'public', 'runtime', 'web', 'docs', 'tests', 'devtools', '.github', rtrim($this->package->getVendorPath(), '/')])->exclude($this->getMount())->in($this->package->getDirectory());
 
@@ -361,6 +376,9 @@ PHP;
 
         // 前端资源以 zip 形式进入 Phar，运行时首次 start 或手动命令再发布到 public，避免 raw web/dist 目录暴露在包内。
         $this->addFrontendArchive($target);
+
+        // release 安装包固定放入 Phar 内，正式环境 install/restore --install 不再依赖外置数据库安装包目录。
+        $this->addReleaseInstallPackage($target);
 
         // 应用插件的清单与资源由 plugin.json 显式声明；主包默认排除了 plugin/，
         // 因此这里按清单补入 Phar，确保安装/迁移/翻译加载时可直接读取包内文件。
@@ -519,6 +537,38 @@ PHP;
             $targetPhar->addFromString(self::FRONTEND_ARCHIVE_PATH, $content);
         } finally {
             @unlink($archive);
+        }
+    }
+
+    /**
+     * 将构建期生成的 release 安装包写入 Phar。
+     *
+     * 安装包只服务 `xadmin:release:restore --install` 和 `xadmin:release:install`，必须是结构 + 必要数据，
+     * 不能携带 `--with-data` 的运行期全量数据，避免发布包泄露生产数据。
+     */
+    protected function addReleaseInstallPackage(Target $targetPhar): void
+    {
+        $sourceDir = $this->package->getDirectory() . self::RELEASE_INSTALL_PACKAGE_PATH;
+        if (!is_dir($sourceDir)) {
+            throw new \RuntimeException('Release install package directory missing: ' . $sourceDir);
+        }
+
+        foreach (self::RELEASE_INSTALL_REQUIRED_FILES as $filename) {
+            $source = $sourceDir . '/' . $filename;
+            if (!is_file($source) || filesize($source) <= 0) {
+                throw new \RuntimeException('Release install package file missing or empty: ' . $source);
+            }
+        }
+
+        $meta = json_decode((string)file_get_contents($sourceDir . '/database.meta.json'), true);
+        if (!is_array($meta) || ($meta['kind'] ?? null) !== 'install' || ($meta['with_data'] ?? true) !== false) {
+            throw new \RuntimeException('Release install package metadata must be kind=install and with_data=false.');
+        }
+
+        foreach (self::RELEASE_INSTALL_REQUIRED_FILES as $filename) {
+            $source = $sourceDir . '/' . $filename;
+            $this->logger->info('Adding release install package "' . self::RELEASE_INSTALL_PACKAGE_PATH . '/' . $filename . '"');
+            $targetPhar->addFile($source);
         }
     }
 
