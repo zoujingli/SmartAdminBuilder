@@ -50,6 +50,11 @@ class Builder
     private const FRONTEND_REQUIRED_ENTRIES = ['index.html'];
 
     /**
+     * 前端资源包必须只用 static 目录承载静态文件；避免重新产生 css/js/jse 等散落目录。
+     */
+    private const FRONTEND_REQUIRED_PREFIXES = ['static/'];
+
+    /**
      * 运行环境动态生成的前端配置，不能进入资源压缩包，避免部署后覆盖 .env 注入值。
      */
     private const FRONTEND_DYNAMIC_CONFIGS = ['_app.config.js'];
@@ -708,6 +713,31 @@ PHP;
                 @unlink($tmp);
                 throw new \RuntimeException('Frontend archive missing required entry: ' . $entry);
             }
+        }
+
+        foreach (array_keys($entries) as $entry) {
+            foreach (self::FRONTEND_REQUIRED_ENTRIES as $requiredEntry) {
+                if ($entry === $requiredEntry) {
+                    continue 2;
+                }
+            }
+            foreach (self::FRONTEND_REQUIRED_PREFIXES as $prefix) {
+                if (str_starts_with($entry, $prefix)) {
+                    continue 2;
+                }
+            }
+            @unlink($tmp);
+            throw new \RuntimeException('Frontend archive contains non-static root path: ' . $entry);
+        }
+
+        foreach (self::FRONTEND_REQUIRED_PREFIXES as $prefix) {
+            foreach (array_keys($entries) as $entry) {
+                if (str_starts_with($entry, $prefix)) {
+                    continue 2;
+                }
+            }
+            @unlink($tmp);
+            throw new \RuntimeException('Frontend archive missing required prefix: ' . $prefix);
         }
 
         return $tmp;
