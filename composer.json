@@ -27,7 +27,7 @@
   },
   "extra": {
     "branch-alias": {
-      "dev-master": "3.1-dev"
+      "dev-master": "3.2-dev"
     },
     "hyperf": {
       "config": "Builder\\Provider"
@@ -35,7 +35,7 @@
   },
   "require-dev": {
     "phpstan/phpstan": "^2.1",
-    "phpunit/phpunit": "^11.5",
+    "phpunit/phpunit": "^13",
     "psr/log": "^3.0",
     "symfony/var-dumper": "^8.0"
   },
