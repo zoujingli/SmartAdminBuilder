@@ -364,6 +364,8 @@ PHP;
             '/^\.php-cs-fixer\.php$/i',
             '/^\.php-sfx-packer\.php$/i',
             '/^composer\.phar/i',
+            // 根目录临时归档通常是人工备份或导出文件，不能进入 Phar，否则会导致发布包体积异常并拖垮 SFX 启动内存。
+            '/^[^\/]+\.zip$/i',
             '/^bin\/swoole-/i',
             '/^storage\/extra\/release\//i',
             $fphar,
