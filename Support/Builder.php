@@ -39,7 +39,8 @@ class Builder
      * 数据库安装包必需文件；只允许构建期生成的结构、必要数据和元数据进入 Phar。
      */
     private const RELEASE_INSTALL_REQUIRED_FILES = [
-        'database.schema.gz',
+        'database.schema.mysql.gz',
+        'database.schema.sqlite.gz',
         'database.data.gz',
         'database.meta.json',
     ];
@@ -567,9 +568,50 @@ PHP;
             }
         }
 
+        if (is_file($sourceDir . '/database.schema.gz')) {
+            throw new \RuntimeException('Legacy single-schema release install package is not supported.');
+        }
         $meta = json_decode((string)file_get_contents($sourceDir . '/database.meta.json'), true);
-        if (!is_array($meta) || ($meta['kind'] ?? null) !== 'install' || ($meta['with_data'] ?? true) !== false) {
-            throw new \RuntimeException('Release install package metadata must be kind=install and with_data=false.');
+        if (
+            !is_array($meta)
+            || (int)($meta['format_version'] ?? 0) !== 2
+            || ($meta['kind'] ?? null) !== 'install'
+            || ($meta['with_data'] ?? true) !== false
+        ) {
+            throw new \RuntimeException('Release install package metadata must be format_version=2, kind=install and with_data=false.');
+        }
+        $databasePrefix = $meta['database_prefix'] ?? null;
+        if (
+            !is_string($databasePrefix)
+            || $databasePrefix !== trim($databasePrefix)
+            || ($databasePrefix !== '' && preg_match('/^[a-zA-Z0-9_]+$/D', $databasePrefix) !== 1)
+        ) {
+            throw new \RuntimeException('Release install package database_prefix is missing or invalid.');
+        }
+        $schemas = is_array($meta['schema'] ?? null) ? $meta['schema'] : [];
+        foreach (['mysql', 'sqlite'] as $driver) {
+            $filename = "database.schema.{$driver}.gz";
+            $entry = is_array($schemas[$driver] ?? null) ? $schemas[$driver] : [];
+            if (
+                (string)($entry['driver'] ?? '') !== $driver
+                || (string)($entry['file'] ?? '') !== $filename
+                || !hash_equals(
+                    (string)($entry['sha256'] ?? ''),
+                    (string)hash_file('sha256', $sourceDir . '/' . $filename)
+                )
+            ) {
+                throw new \RuntimeException("Release install package {$driver} schema mapping or hash is invalid.");
+            }
+        }
+        $data = is_array($meta['data'] ?? null) ? $meta['data'] : [];
+        if (
+            (string)($data['file'] ?? '') !== 'database.data.gz'
+            || !hash_equals(
+                (string)($data['sha256'] ?? ''),
+                (string)hash_file('sha256', $sourceDir . '/database.data.gz')
+            )
+        ) {
+            throw new \RuntimeException('Release install package shared data mapping or hash is invalid.');
         }
 
         foreach (self::RELEASE_INSTALL_REQUIRED_FILES as $filename) {
